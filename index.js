@@ -6,6 +6,13 @@ const readline = require("readline");
 const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
+// Fungsi untuk jeda antar transaksi
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const TX_INTERVAL = parseInt(process.env.TX_INTERVAL_MS) || 2000;
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -48,6 +55,7 @@ async function main() {
           } else {
             tx = await wallet.sendTransaction({ to, value: amount });
           }
+
           const txHash = tx.hash;
           const txType = useERC20 ? "ERC-20" : "TEA";
           const explorer = "https://sepolia.tea.xyz/tx/" + txHash;
@@ -59,6 +67,9 @@ async function main() {
           console.log(log);
           logs.push(log);
         }
+
+        // Jeda sebelum transaksi berikutnya
+        await sleep(TX_INTERVAL);
       }
 
       fs.writeFileSync("logs.txt", logs.join("\n"), "utf-8");
