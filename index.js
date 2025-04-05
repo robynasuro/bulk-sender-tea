@@ -47,7 +47,7 @@ async function animateLoading() {
     process.stdout.write(`\r${frames[i]} Menunggu TX berikutnya...`);
     await sleep(frameDuration);
   }
-  process.stdout.write("\r                             \r"); // clear
+  process.stdout.write("\r                             \r");
 }
 
 async function sendTx(to, amount, useERC20, tokenContract, tokenSymbol, tokenDecimals, index, logs) {
@@ -143,7 +143,15 @@ async function dailyTxSetup() {
     );
 
     const kembali = await ask("Auto daily TX aktif ✅. Kembali ke menu utama? (y/n): ");
-    if (kembali.trim().toLowerCase() === "y") return;
+    if (kembali.trim().toLowerCase() === "y") {
+      return;
+    } else {
+      console.log("⏳ Menunggu eksekusi auto daily TX berikutnya...");
+      while (true) {
+        await animateLoading();
+        await sleep(1000);
+      }
+    }
   }
 }
 
