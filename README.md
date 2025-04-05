@@ -90,22 +90,6 @@ Semua hasil tercatat di `logs.txt`, misal:
 
 ---
 
-## 🧪 Deploy Token ERC-20
-
-```bash
-node deploy.js
-```
-
-Tambahkan ke `.env`:
-```env
-TOKEN_NAME=MyToken
-TOKEN_SYMBOL=MTK
-TOKEN_SUPPLY=1000000
-```
-
-Token akan langsung ter-deploy dan address ditampilkan di terminal.
-
----
 
 ## 💡 Tips
 - Gunakan **delay minimal 1500–3000 ms** untuk menghindari `replacement transaction underpriced` dan `nonce too low`.
