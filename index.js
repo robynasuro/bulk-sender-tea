@@ -9,15 +9,15 @@ const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout
+  output: process.stdout,
 });
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function ask(question) {
-  return new Promise(resolve => rl.question(question, resolve));
+  return new Promise((resolve) => rl.question(question, resolve));
 }
 
 function getTimestampWIB() {
@@ -28,12 +28,26 @@ function getTimestampWIB() {
 }
 
 const TX_INTERVAL = parseInt(process.env.TX_INTERVAL_MS) || 2000;
+const LOADING_DURATION = Math.max(1000, Math.floor(TX_INTERVAL * 0.8));
 
 function getRecipients() {
-  return fs.readFileSync("recipients.txt", "utf-8")
+  return fs
+    .readFileSync("recipients.txt", "utf-8")
     .split("\n")
-    .map(line => line.trim())
-    .filter(line => line !== "");
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+}
+
+async function animateLoading() {
+  const frames = ["⏳", "⌛", "🕓", "🕒", "🕑", "🕐"];
+  const totalFrames = frames.length;
+  const frameDuration = Math.floor(LOADING_DURATION / totalFrames);
+
+  for (let i = 0; i < totalFrames; i++) {
+    process.stdout.write(`\r${frames[i]} Menunggu TX berikutnya...`);
+    await sleep(frameDuration);
+  }
+  process.stdout.write("\r                             \r"); // clear
 }
 
 async function sendTx(to, amount, useERC20, tokenContract, tokenSymbol, tokenDecimals, index, logs) {
@@ -49,6 +63,7 @@ async function sendTx(to, amount, useERC20, tokenContract, tokenSymbol, tokenDec
     const log = `${getTimestampWIB()} [${useERC20 ? "ERC-20" : "TEA"}] ✅ TX ${index + 1} | Sent ${ethers.formatUnits(amount, tokenDecimals)} ${tokenSymbol} to ${to} — ${explorer}`;
     console.log(log);
     logs.push(log);
+    await animateLoading();
   } catch (err) {
     const log = `${getTimestampWIB()} [${useERC20 ? "ERC-20" : "TEA"}] ❌ TX ${index + 1} | Gagal ke ${to} — ${err.message}`;
     console.log(log);
@@ -67,7 +82,7 @@ async function executeTransactions(maxTx, amtRaw, useERC20) {
   if (useERC20) {
     const abi = [
       "function transfer(address to, uint amount) public returns (bool)",
-      "function symbol() public view returns (string)"
+      "function symbol() public view returns (string)",
     ];
     tokenContract = new ethers.Contract(tokenContractAddress, abi, wallet);
     try {
@@ -93,40 +108,103 @@ async function executeTransactions(maxTx, amtRaw, useERC20) {
 }
 
 async function manualTxMenu() {
-  const mode = await ask("Pilih mode (1: Native TEA, 2: ERC-20): ");
-  const useERC20 = mode.trim() === "2";
-  const maxTx = parseInt(await ask("Jumlah maksimal transaksi: "));
-  const amount = await ask(`Jumlah yang dikirim per address: `);
-  await executeTransactions(maxTx, amount, useERC20);
-  rl.close();
+  while (true) {
+    const mode = await ask("Pilih mode (1: Native TEA, 2: ERC-20, 0: Kembali): ");
+    if (mode.trim() === "0") return;
+
+    const useERC20 = mode.trim() === "2";
+    const maxTx = parseInt(await ask("Jumlah maksimal transaksi: "));
+    const amount = await ask("Jumlah yang dikirim per address: ");
+
+    await executeTransactions(maxTx, amount, useERC20);
+    console.log("\n✅ Transaksi selesai.\n");
+    const lanjut = await ask("Kembali ke menu utama? (y/n): ");
+    if (lanjut.trim().toLowerCase() === "y") return;
+  }
 }
 
 async function dailyTxSetup() {
-  const mode = await ask("Pilih mode (1: Native TEA, 2: ERC-20): ");
-  const useERC20 = mode.trim() === "2";
-  const amount = await ask(`Jumlah yang dikirim per address: `);
-  const maxTx = parseInt(await ask("Jumlah maksimal transaksi per hari: "));
+  while (true) {
+    const mode = await ask("Pilih mode (1: Native TEA, 2: ERC-20, 0: Kembali): ");
+    if (mode.trim() === "0") return;
 
-  console.log("⏰ Auto daily TX diset untuk jam 10 pagi WIB (03:00 UTC).");
-  cron.schedule("0 3 * * *", async () => {
-    console.log(`\n${getTimestampWIB()} ⏰ Auto daily TX dimulai...`);
-    await executeTransactions(maxTx, amount, useERC20);
-  }, { timezone: "UTC" });
+    const useERC20 = mode.trim() === "2";
+    const amount = await ask("Jumlah yang dikirim per address: ");
+    const maxTx = parseInt(await ask("Jumlah maksimal transaksi per hari: "));
+
+    console.log("⏰ Auto daily TX diset untuk jam 10 pagi WIB (03:00 UTC).");
+    cron.schedule(
+      "0 3 * * *",
+      async () => {
+        console.log(`\n${getTimestampWIB()} ⏰ Auto daily TX dimulai...`);
+        await executeTransactions(maxTx, amount, useERC20);
+      },
+      { timezone: "UTC" }
+    );
+
+    const kembali = await ask("Auto daily TX aktif ✅. Kembali ke menu utama? (y/n): ");
+    if (kembali.trim().toLowerCase() === "y") return;
+  }
+}
+
+async function checkWalletBalance() {
+  console.log(`\n=== CEK SALDO WALLET ===`);
+  const nativeBalance = await provider.getBalance(wallet.address);
+  console.log(`💰 Native TEA: ${ethers.formatEther(nativeBalance)} TEA`);
+
+  try {
+    const tokenContract = new ethers.Contract(
+      process.env.TOKEN_CONTRACT,
+      [
+        "function balanceOf(address account) public view returns (uint)",
+        "function symbol() public view returns (string)",
+      ],
+      provider
+    );
+    const tokenBalance = await tokenContract.balanceOf(wallet.address);
+    const symbol = await tokenContract.symbol();
+    const decimals = parseInt(process.env.TOKEN_DECIMALS || "18");
+    console.log(`🪙 ${symbol}: ${ethers.formatUnits(tokenBalance, decimals)} ${symbol}`);
+  } catch {
+    console.warn("⚠️ Gagal cek saldo token ERC-20. Cek .env TOKEN_CONTRACT valid.");
+  }
+
+  await ask("\nTekan Enter untuk kembali ke menu utama...");
 }
 
 async function mainMenu() {
-  console.log("=== BULK SENDER TEA ===");
-  console.log("1. Manual TX (Native TEA / ERC-20)");
-  console.log("2. Auto Daily TX (Jam 10 WIB)");
+  while (true) {
+    console.clear();
+    console.log(`
+   ____ ____  _____    _    __  __ __  __ __     __
+  / ___|  _ \\| ____|  / \\  |  \\/  |  \\/  |\\ \\   / /
+ | |   | | | |  _|   / _ \\ | |\\/| | |\\/| | \\ \\ / / 
+ | |___| |_| | |___ / ___ \\| |  | | |  | |  \\ V /  
+  \\____|____/|_____/_/   \\_\\_|  |_|_|  |_|   \\_/   
 
-  const choice = await ask("Pilih menu: ");
-  if (choice.trim() === "1") {
-    await manualTxMenu();
-  } else if (choice.trim() === "2") {
-    await dailyTxSetup();
-  } else {
-    console.log("❌ Pilihan tidak valid.");
-    rl.close();
+             🧁 Bulk Sender TEA by 0xcreamy 🧁
+    `);
+
+    console.log("1. Manual TX (Native TEA / ERC-20)");
+    console.log("2. Auto Daily TX (Jam 10 WIB)");
+    console.log("3. Cek Saldo Wallet");
+    console.log("4. Keluar");
+
+    const choice = await ask("Pilih menu: ");
+    if (choice.trim() === "1") {
+      await manualTxMenu();
+    } else if (choice.trim() === "2") {
+      await dailyTxSetup();
+    } else if (choice.trim() === "3") {
+      await checkWalletBalance();
+    } else if (choice.trim() === "4") {
+      console.log("👋 Keluar dari aplikasi. Sampai jumpa!");
+      rl.close();
+      process.exit(0);
+    } else {
+      console.log("❌ Pilihan tidak valid.");
+      await sleep(1000);
+    }
   }
 }
 
