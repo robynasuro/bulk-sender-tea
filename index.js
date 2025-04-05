@@ -29,22 +29,30 @@ async function main() {
   rl.question("Masukkan jumlah maksimal transaksi yang ingin dikirim: ", async (input) => {
     const maxTx = parseInt(input);
     const useERC20 = process.env.USE_ERC20 === "true";
-    const tokenSymbol = process.env.TOKEN_SYMBOL || "TEA";
-    const logs = [];
-
-    const totalTx = Math.min(maxTx, recipients.length);
     const tokenDecimals = parseInt(process.env.TOKEN_DECIMALS || "18");
     const tokenContractAddress = process.env.TOKEN_CONTRACT;
 
-    let amount;
-    rl.question(`Masukkan jumlah ${tokenSymbol} yang ingin dikirim ke tiap address: `, async (amt) => {
-      amount = ethers.parseUnits(amt, tokenDecimals);
+    let tokenSymbol = process.env.TOKEN_SYMBOL || "TOKEN";
 
-      let tokenContract;
-      if (useERC20) {
-        const abi = ["function transfer(address to, uint amount) public returns (bool)"];
-        tokenContract = new ethers.Contract(tokenContractAddress, abi, wallet);
+    let tokenContract;
+    if (useERC20) {
+      const abi = [
+        "function transfer(address to, uint amount) public returns (bool)",
+        "function symbol() public view returns (string)"
+      ];
+      tokenContract = new ethers.Contract(tokenContractAddress, abi, wallet);
+      try {
+        tokenSymbol = await tokenContract.symbol();
+      } catch (e) {
+        console.warn("Gagal mengambil simbol token, menggunakan default dari .env");
       }
+    }
+
+    const logs = [];
+    const totalTx = Math.min(maxTx, recipients.length);
+
+    rl.question(`Masukkan jumlah ${tokenSymbol} yang ingin dikirim ke tiap address: `, async (amt) => {
+      const amount = ethers.parseUnits(amt, tokenDecimals);
 
       for (let i = 0; i < totalTx; i++) {
         const to = recipients[i];
@@ -68,7 +76,6 @@ async function main() {
           logs.push(log);
         }
 
-        // Jeda sebelum transaksi berikutnya
         await sleep(TX_INTERVAL);
       }
 
