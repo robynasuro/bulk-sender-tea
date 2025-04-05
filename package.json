@@ -1,0 +1,10 @@
+{
+  "name": "bulk-sender-tea",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "ethers": "^6.13.0"
+  }
+}
