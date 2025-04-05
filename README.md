@@ -5,6 +5,7 @@ Script Node.js untuk mengirim native token (TEA) atau token ERC-20 ke banyak wal
 
 ## 🛠️ Fitur
 - Kirim TEA native token atau ERC-20.
+- Deploy TOKEN ERC-20
 - Input jumlah transaksi dan nominal token.
 - Acak daftar penerima (`recipients.txt`).
 - Delay antar transaksi untuk menghindari nonce error.
