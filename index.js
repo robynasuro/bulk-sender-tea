@@ -157,7 +157,13 @@ async function dailyTxSetup() {
 
 async function checkWalletBalance() {
   console.log(`\n=== CEK SALDO WALLET ===`);
-  const nativeBalance = await provider.getBalance(wallet.address);
+
+  const walletAddress = wallet.address;
+  const explorerLink = `https://sepolia.tea.xyz/address/${walletAddress}`;
+  console.log(`📮 Address: ${walletAddress}`);
+  console.log(`🔗 Explorer: ${explorerLink}`);
+
+  const nativeBalance = await provider.getBalance(walletAddress);
   console.log(`💰 Native TEA: ${ethers.formatEther(nativeBalance)} TEA`);
 
   try {
@@ -169,7 +175,7 @@ async function checkWalletBalance() {
       ],
       provider
     );
-    const tokenBalance = await tokenContract.balanceOf(wallet.address);
+    const tokenBalance = await tokenContract.balanceOf(walletAddress);
     const symbol = await tokenContract.symbol();
     const decimals = parseInt(process.env.TOKEN_DECIMALS || "18");
     console.log(`🪙 ${symbol}: ${ethers.formatUnits(tokenBalance, decimals)} ${symbol}`);
